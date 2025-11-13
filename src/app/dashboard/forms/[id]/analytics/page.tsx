@@ -75,7 +75,6 @@ export default function FormAnalyticsPage() {
     }
   };
 
-  // NOUVELLE fonction pour appeler l'API OpenAI via route API
   const analyzeFormResponses = async (responsesData: any[], formData: FormData): Promise<AnalysisResult> => {
     try {
       const response = await fetch('/api/analytics', {
@@ -448,7 +447,7 @@ export default function FormAnalyticsPage() {
                                 <span className="text-sm font-medium text-gray-700">
                                   {percentage}%
                                 </span>
-                                <span className="text-xs text-gray-500">({count})</span>
+                                <span className="text-xs text-gray-500">({String(count)})</span>
                               </div>
                             </div>
                           );
