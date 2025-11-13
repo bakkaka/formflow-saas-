@@ -48,7 +48,7 @@ export default function PricingPage() {
       ],
       cta: 'Essayer 14 jours gratuits',
       popular: true,
-      priceId: 'price_1Pq9a2P8wM5C6qLd4Kp8a9bC', // REMPLACEZ PAR VOTRE VRAI PRICE ID
+      priceId: 'price_1Pq9a2P8wM5C6qLd4Kp8a9bC',
       badge: 'Plus populaire'
     },
     {
@@ -70,19 +70,17 @@ export default function PricingPage() {
       ],
       cta: 'Démarrer l\'essai gratuit',
       popular: false,
-      priceId: 'price_1Pq9a2P8wM5C6qLd5Lp9b0cD', // REMPLACEZ PAR VOTRE VRAI PRICE ID
+      priceId: 'price_1Pq9a2P8wM5C6qLd5Lp9b0cD',
       badge: 'Recommandé'
     }
   ];
 
   const handleSubscription = async (plan: typeof plans[0]) => {
     if (!plan.priceId) {
-      // Plan gratuit
       window.location.href = isSignedIn ? '/dashboard' : '/sign-up';
       return;
     }
 
-    // Vérifications
     if (stripeLoading) {
       alert('Stripe est en cours de chargement. Veuillez patienter...');
       return;
@@ -123,13 +121,10 @@ export default function PricingPage() {
 
       console.log('Redirecting to Stripe checkout with session:', sessionId);
 
-      // ✅ NOUVELLE MÉTHODE - Redirection directe
       if (url) {
         window.location.href = url;
       } else {
-        // Fallback pour l'ancienne méthode
         console.warn('Using legacy Stripe redirect method');
-        // Note: redirectToCheckout est déprécié, mais gardé comme fallback
         const { error } = await (stripe as any).redirectToCheckout({
           sessionId,
         });
@@ -147,7 +142,6 @@ export default function PricingPage() {
     }
   };
 
-  // Loading state
   if (stripeLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
@@ -163,7 +157,6 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center mb-16">
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-100 text-indigo-800 text-sm font-medium mb-6">
             🎯 Paiements 100% sécurisés avec Stripe
@@ -175,7 +168,6 @@ export default function PricingPage() {
             Choisissez le plan qui correspond à vos besoins. Tous les plans payants incluent un essai gratuit de 14 jours.
           </p>
           
-          {/* Stripe Status */}
           {!stripe && !stripeLoading && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
               <div className="flex items-center">
@@ -190,7 +182,6 @@ export default function PricingPage() {
           )}
         </div>
 
-        {/* Pricing Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {plans.map((plan) => (
             <div
@@ -201,7 +192,6 @@ export default function PricingPage() {
                   : 'border-gray-200 hover:border-indigo-300'
               }`}
             >
-              {/* Badge */}
               {plan.badge && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                   <span className={`px-4 py-1 rounded-full text-sm font-semibold ${
@@ -215,7 +205,6 @@ export default function PricingPage() {
               )}
               
               <div className="p-8 h-full flex flex-col">
-                {/* Header */}
                 <div className="text-center mb-8 flex-1">
                   <h3 className="text-2xl font-bold text-gray-900 mb-3">
                     {plan.name}
@@ -231,7 +220,6 @@ export default function PricingPage() {
                   </p>
                 </div>
 
-                {/* Features */}
                 <ul className="space-y-4 mb-8 flex-1">
                   {plan.features.map((feature, index) => (
                     <li key={index} className="flex items-start">
@@ -243,11 +231,10 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                {/* CTA Button */}
                 <div className="mt-auto">
                   <button
                     onClick={() => handleSubscription(plan)}
-                    disabled={loading === plan.id || (!stripe && plan.priceId)}
+                    disabled={!!(loading === plan.id || (!stripe && plan.priceId))} {/* ✅ CORRIGÉ ICI */}
                     className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
                       plan.popular
                         ? 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-400 shadow-lg hover:shadow-xl'
@@ -277,7 +264,6 @@ export default function PricingPage() {
           ))}
         </div>
 
-        {/* Entreprise Section */}
         <div className="max-w-4xl mx-auto mt-16 text-center">
           <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-8 border border-purple-200">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">
@@ -300,7 +286,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* FAQ */}
         <div className="max-w-4xl mx-auto mt-20">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
             Questions fréquentes
@@ -336,7 +321,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Security Badges */}
         <div className="text-center mt-16">
           <p className="text-gray-500 text-sm mb-6">Paiements 100% sécurisés avec</p>
           <div className="flex justify-center items-center space-x-8 opacity-60">
