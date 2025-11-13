@@ -1,38 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { supabase } from '@/lib/supabase';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// ✅ Version encore plus sécurisée avec import conditionnel
+let stripeInstance: any = null;
 
-export async function POST(request: NextRequest) {
+const initializeStripe = async () => {
+  if (stripeInstance) return stripeInstance;
+  
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  
+  if (!stripeKey) {
+    console.warn('STRIPE_SECRET_KEY not available');
+    return null;
+  }
+
   try {
-    const { priceId, planName } = await request.json();
+    // ✅ Import dynamique pour éviter les problèmes de build
+    const { default: Stripe } = await import('stripe');
+    stripeInstance = new Stripe(stripeKey);
+    return stripeInstance;
+  } catch (error) {
+    console.error('Failed to initialize Stripe:', error);
+    return null;
+  }
+};
 
-    if (!priceId) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const formId = params.id;
+    const { response_data } = await request.json();
+
+    // Sauvegarder la réponse dans Supabase
+    const { data, error } = await supabase
+      .from('form_responses')
+      .insert([
+        {
+          form_id: formId,
+          response_data: response_data,
+          created_at: new Date().toISOString(),
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Supabase error:', error);
       return NextResponse.json(
-        { error: 'Price ID is required' },
-        { status: 400 }
+        { error: 'Failed to save response' },
+        { status: 500 }
       );
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
-      metadata: {
-        planName: planName || 'Starter',
-      },
+    // ✅ Stripe optionnel - initialisation asynchrone
+    const stripe = await initializeStripe();
+    if (stripe) {
+      console.log('Stripe available for additional processing');
+      // Ici vous pouvez ajouter la logique Stripe si nécessaire
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      response_id: data[0]?.id,
+      message: 'Response saved successfully'
     });
 
-    return NextResponse.json({ sessionId: session.id });
   } catch (error) {
-    console.error('Checkout error:', error);
+    console.error('Form submit error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
