@@ -428,7 +428,7 @@ export default function FormAnalyticsPage() {
                                   <span className="text-sm font-medium text-gray-700">
                                     {percentage}%
                                   </span>
-                                  <span className="text-xs text-gray-500">({count})</span>
+                                  <span className="text-xs text-gray-500">({String(count)})</span>
                                 </div>
                               </div>
                             </div>
