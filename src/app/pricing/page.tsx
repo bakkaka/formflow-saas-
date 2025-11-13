@@ -119,17 +119,25 @@ export default function PricingPage() {
         throw new Error(`API error: ${response.status} - ${errorData}`);
       }
 
-      const { sessionId } = await response.json();
+      const { sessionId, url } = await response.json();
 
       console.log('Redirecting to Stripe checkout with session:', sessionId);
 
-      const { error } = await stripe.redirectToCheckout({
-        sessionId,
-      });
+      // ✅ NOUVELLE MÉTHODE - Redirection directe
+      if (url) {
+        window.location.href = url;
+      } else {
+        // Fallback pour l'ancienne méthode
+        console.warn('Using legacy Stripe redirect method');
+        // Note: redirectToCheckout est déprécié, mais gardé comme fallback
+        const { error } = await (stripe as any).redirectToCheckout({
+          sessionId,
+        });
 
-      if (error) {
-        console.error('Stripe redirect error:', error);
-        alert(`Erreur de paiement: ${error.message}`);
+        if (error) {
+          console.error('Stripe redirect error:', error);
+          alert(`Erreur de paiement: ${error.message}`);
+        }
       }
     } catch (error) {
       console.error('Checkout process error:', error);
