@@ -234,7 +234,7 @@ export default function PricingPage() {
                 <div className="mt-auto">
                   <button
                     onClick={() => handleSubscription(plan)}
-                    disabled={!!(loading === plan.id || (!stripe && plan.priceId))} {/* ✅ CORRIGÉ ICI */}
+                    disabled={!!(loading === plan.id || (!stripe && plan.priceId))} 
                     className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
                       plan.popular
                         ? 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-400 shadow-lg hover:shadow-xl'
