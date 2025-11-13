@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
-    const { priceId } = await request.json();
+    const { priceId, planName } = await request.json();
+
+    if (!priceId) {
+      return NextResponse.json(
+        { error: 'Price ID is required' },
+        { status: 400 }
+      );
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -20,13 +25,16 @@ export async function POST(request: NextRequest) {
       ],
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+      metadata: {
+        planName: planName || 'Starter',
+      },
     });
 
     return NextResponse.json({ sessionId: session.id });
   } catch (error) {
-    console.error('Stripe error:', error);
+    console.error('Checkout error:', error);
     return NextResponse.json(
-      { error: 'Error creating checkout session' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
