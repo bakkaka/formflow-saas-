@@ -1,53 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import Stripe from 'stripe';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-09-30.acacia', // ✅ VERSION CORRECTE
+});
+
+export async function POST(request: NextRequest) {
   try {
-    const { id } = await params;
-    const formData = await request.formData();
-    
-    // Convertir FormData en objet
-    const responseData: Record<string, any> = {};
-    for (const [key, value] of formData.entries()) {
-      responseData[key] = value.toString();
-    }
+    const { priceId, planName } = await request.json();
 
-    console.log('📥 Réponse reçue pour le formulaire:', id);
-    console.log('📊 Données:', responseData);
-
-    // Sauvegarder dans Supabase
-    const { data, error } = await supabase
-      .from('form_responses')
-      .insert([
-        {
-          form_id: id,
-          response_data: responseData
-        }
-      ])
-      .select();
-
-    if (error) {
-      console.error('❌ Erreur Supabase:', error);
+    if (!priceId) {
       return NextResponse.json(
-        { error: 'Erreur lors de la sauvegarde' },
-        { status: 500 }
+        { error: 'Price ID is required' },
+        { status: 400 }
       );
     }
 
-    console.log('✅ Réponse sauvegardée:', data);
+    // Créer la session Checkout
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+      metadata: {
+        planName: planName || 'Starter',
+      },
+    });
 
-    // Rediriger vers une page de remerciement
-    return NextResponse.redirect(
-      new URL(`/forms/${id}/thank-you`, request.url)
-    );
-
+    return NextResponse.json({ sessionId: session.id });
   } catch (error) {
-    console.error('💥 Erreur API:', error);
+    console.error('Checkout error:', error);
     return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
