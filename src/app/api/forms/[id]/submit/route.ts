@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+// ✅ Correction pour Next.js 16 - params asynchrones
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> } // ✅ params est maintenant une Promise
+) {
   try {
-    const formId = params.id;
+    // ✅ Await les params
+    const { id } = await context.params;
+    const formId = id;
+    
     const { response_data } = await request.json();
 
-    // Save to Supabase only - Stripe removed from this endpoint
+    // Save to Supabase
     const { data, error } = await supabase
       .from('form_responses')
       .insert([
