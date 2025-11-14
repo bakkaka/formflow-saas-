@@ -5,12 +5,25 @@ import { useUser } from '@clerk/nextjs';
 import { useStripe } from '@/components/StripeProvider';
 import Link from 'next/link';
 
+interface PricingPlan {
+  id: string;
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  cta: string;
+  popular: boolean;
+  priceId: string | null;
+  badge: string | null;
+}
+
 export default function PricingPage() {
   const { isSignedIn } = useUser();
   const { stripe, loading: stripeLoading } = useStripe();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const plans = [
+  const plans: PricingPlan[] = [
     {
       id: 'free',
       name: 'Free',
@@ -75,7 +88,7 @@ export default function PricingPage() {
     }
   ];
 
-  const handleSubscription = async (plan: typeof plans[0]) => {
+  const handleSubscription = async (plan: PricingPlan) => {
     if (!plan.priceId) {
       window.location.href = isSignedIn ? '/dashboard' : '/sign-up';
       return;
@@ -183,85 +196,89 @@ export default function PricingPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative bg-white rounded-2xl shadow-xl border-2 transition-all duration-300 hover:shadow-2xl ${
-                plan.popular 
-                  ? 'border-indigo-500 ring-2 ring-indigo-500 ring-opacity-20 transform scale-105' 
-                  : 'border-gray-200 hover:border-indigo-300'
-              }`}
-            >
-              {plan.badge && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className={`px-4 py-1 rounded-full text-sm font-semibold ${
-                    plan.popular 
-                      ? 'bg-indigo-500 text-white' 
-                      : 'bg-green-500 text-white'
-                  }`}>
-                    {plan.badge}
-                  </span>
-                </div>
-              )}
-              
-              <div className="p-8 h-full flex flex-col">
-                <div className="text-center mb-8 flex-1">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                    {plan.name}
-                  </h3>
-                  <div className="flex items-baseline justify-center mb-4">
-                    <span className="text-4xl font-bold text-gray-900">
-                      {plan.price}
+          {plans.map((plan) => {
+            const isDisabled = loading === plan.id || (!stripe && Boolean(plan.priceId));
+            
+            return (
+              <div
+                key={plan.id}
+                className={`relative bg-white rounded-2xl shadow-xl border-2 transition-all duration-300 hover:shadow-2xl ${
+                  plan.popular 
+                    ? 'border-indigo-500 ring-2 ring-indigo-500 ring-opacity-20 transform scale-105' 
+                    : 'border-gray-200 hover:border-indigo-300'
+                }`}
+              >
+                {plan.badge && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <span className={`px-4 py-1 rounded-full text-sm font-semibold ${
+                      plan.popular 
+                        ? 'bg-indigo-500 text-white' 
+                        : 'bg-green-500 text-white'
+                    }`}>
+                      {plan.badge}
                     </span>
-                    <span className="text-gray-500 ml-2">{plan.period}</span>
                   </div>
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {plan.description}
-                  </p>
-                </div>
-
-                <ul className="space-y-4 mb-8 flex-1">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-start">
-                      <svg className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                      </svg>
-                      <span className="text-gray-700 text-sm leading-relaxed">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-auto">
-                  <button
-                    onClick={() => handleSubscription(plan)}
-                    disabled={!!(loading === plan.id || (!stripe && plan.priceId))} 
-                    className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
-                      plan.popular
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-400 shadow-lg hover:shadow-xl'
-                        : 'bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-400 shadow hover:shadow-md'
-                    } ${(loading === plan.id || (!stripe && plan.priceId)) ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'}`}
-                  >
-                    {loading === plan.id ? (
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                        Traitement...
-                      </div>
-                    ) : !stripe && plan.priceId ? (
-                      'Indisponible'
-                    ) : (
-                      plan.cta
-                    )}
-                  </button>
-                  
-                  {plan.priceId && (
-                    <p className="text-center text-gray-500 text-xs mt-3">
-                      🔒 Paiement sécurisé • Annulation à tout moment
+                )}
+                
+                <div className="p-8 h-full flex flex-col">
+                  <div className="text-center mb-8 flex-1">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                      {plan.name}
+                    </h3>
+                    <div className="flex items-baseline justify-center mb-4">
+                      <span className="text-4xl font-bold text-gray-900">
+                        {plan.price}
+                      </span>
+                      <span className="text-gray-500 ml-2">{plan.period}</span>
+                    </div>
+                    <p className="text-gray-600 text-sm leading-relaxed">
+                      {plan.description}
                     </p>
-                  )}
+                  </div>
+
+                  <ul className="space-y-4 mb-8 flex-1">
+                    {plan.features.map((feature, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span className="text-gray-700 text-sm leading-relaxed">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-auto">
+                    <button
+                      onClick={() => handleSubscription(plan)}
+                      disabled={isDisabled}
+                      className={`w-full py-4 px-6 rounded-xl font-semibold transition-all duration-200 ${
+                        plan.popular
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-400 shadow-lg hover:shadow-xl'
+                          : 'bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-400 shadow hover:shadow-md'
+                      } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'transform hover:scale-105'}`}
+                    >
+                      {loading === plan.id ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                          Traitement...
+                        </div>
+                      ) : !stripe && plan.priceId ? (
+                        'Indisponible'
+                      ) : (
+                        plan.cta
+                      )}
+                    </button>
+                    
+                    {plan.priceId && (
+                      <p className="text-center text-gray-500 text-xs mt-3">
+                        🔒 Paiement sécurisé • Annulation à tout moment
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="max-w-4xl mx-auto mt-16 text-center">
