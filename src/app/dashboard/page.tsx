@@ -1,27 +1,171 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserButton, useUser } from "@clerk/nextjs";
-import Link from "next/link";
+import { useUser } from '@clerk/nextjs';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 
 interface Form {
   id: string;
   title: string;
   description: string;
   created_at: string;
-  response_count?: number;
+  response_count: number;
+  has_responses: boolean;
+  last_activity: string;
+}
+
+interface DashboardStats {
+  totalForms: number;
+  totalResponses: number;
+  todayResponses: number;
 }
 
 export default function DashboardPage() {
   const { user } = useUser();
   const [forms, setForms] = useState<Form[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardStats>({
     totalForms: 0,
     totalResponses: 0,
     todayResponses: 0
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadForms = async () => {
+    try {
+      // ✅ Réinitialiser les états
+      setError(null);
+      setLoading(true);
+
+      // ✅ Vérification robuste de l'utilisateur
+      if (!user || !user.id) {
+        console.warn('🔐 Utilisateur non authentifié ou ID manquant');
+        setForms([]);
+        setStats({
+          totalForms: 0,
+          totalResponses: 0,
+          todayResponses: 0
+        });
+        return;
+      }
+
+      console.log('🔄 Chargement des formulaires pour l\'utilisateur:', user.id);
+
+      // ✅ Chargement des formulaires
+      const { data: formsData, error: formsError } = await supabase
+        .from('forms')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      // ✅ Gestion d'erreur détaillée
+      if (formsError) {
+        console.error('❌ Erreur Supabase (formulaires):', formsError);
+        setError('Erreur lors du chargement des formulaires');
+        setForms([]);
+        setStats({
+          totalForms: 0,
+          totalResponses: 0,
+          todayResponses: 0
+        });
+        return;
+      }
+
+      console.log('✅ Formulaires chargés:', formsData?.length || 0);
+
+      // ✅ Cas aucun formulaire
+      if (!formsData || formsData.length === 0) {
+        console.log('📭 Aucun formulaire trouvé pour cet utilisateur');
+        setForms([]);
+        setStats({
+          totalForms: 0,
+          totalResponses: 0,
+          todayResponses: 0
+        });
+        return;
+      }
+
+      // ✅ Chargement des réponses (optionnel - ne bloque pas si échec)
+      let responsesData: any[] = [];
+      try {
+        const formIds = formsData.map(form => form.id);
+        if (formIds.length > 0) {
+          const { data: responses, error: responsesError } = await supabase
+            .from('form_responses')
+            .select('form_id, created_at')
+            .in('form_id', formIds)
+            .limit(1000);
+
+          if (!responsesError) {
+            responsesData = responses || [];
+          }
+        }
+      } catch (responsesError) {
+        console.warn('⚠️ Erreur lors du chargement des réponses:', responsesError);
+      }
+
+      // ✅ Calcul des statistiques
+      const today = new Date().toLocaleDateString('fr-FR');
+      const todayCount = responsesData.filter(r => {
+        try {
+          return new Date(r.created_at).toLocaleDateString('fr-FR') === today;
+        } catch {
+          return false;
+        }
+      }).length;
+
+      // ✅ Mise à jour des stats
+      setStats({
+        totalForms: formsData.length,
+        totalResponses: responsesData.length,
+        todayResponses: todayCount
+      });
+
+      // ✅ Préparation des données avec compteurs
+      const formsWithCounts: Form[] = formsData.map(form => {
+        const responseCount = responsesData.filter(r => r.form_id === form.id).length;
+        
+        return {
+          id: form.id,
+          title: form.title,
+          description: form.description,
+          created_at: form.created_at,
+          response_count: responseCount,
+          has_responses: responseCount > 0,
+          last_activity: responseCount > 0 ? 
+            new Date(Math.max(...responsesData
+              .filter(r => r.form_id === form.id)
+              .map(r => new Date(r.created_at).getTime())
+            )).toLocaleDateString('fr-FR') 
+            : 'Aucune activité'
+        };
+      });
+
+      // ✅ Tri par activité récente
+      formsWithCounts.sort((a, b) => {
+        if (a.has_responses && !b.has_responses) return -1;
+        if (!a.has_responses && b.has_responses) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setForms(formsWithCounts);
+
+    } catch (error) {
+      // ✅ Gestion d'erreur globale
+      console.error('💥 Erreur critique chargement dashboard:', error);
+      setError('Une erreur est survenue lors du chargement du dashboard');
+      setForms([]);
+      setStats({
+        totalForms: 0,
+        totalResponses: 0,
+        todayResponses: 0
+      });
+    } finally {
+      // ✅ S'assurer que le loading s'arrête toujours
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -29,51 +173,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  const loadForms = async () => {
-    try {
-      // Charger les formulaires
-      const { data: formsData, error: formsError } = await supabase
-        .from('forms')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
-
-      if (formsError) throw formsError;
-
-      // Charger les stats de réponses
-      const { data: responsesData, error: responsesError } = await supabase
-        .from('form_responses')
-        .select('form_id, created_at')
-        .in('form_id', formsData?.map(f => f.id) || []);
-
-      if (responsesError) throw responsesError;
-
-      // Calculer les stats
-      const today = new Date().toLocaleDateString('fr-FR');
-      const todayCount = responsesData?.filter(r => 
-        new Date(r.created_at).toLocaleDateString('fr-FR') === today
-      ).length || 0;
-
-      setStats({
-        totalForms: formsData?.length || 0,
-        totalResponses: responsesData?.length || 0,
-        todayResponses: todayCount
-      });
-
-      // Ajouter le compteur de réponses à chaque formulaire
-      const formsWithCounts = formsData?.map(form => ({
-        ...form,
-        response_count: responsesData?.filter(r => r.form_id === form.id).length || 0
-      })) || [];
-
-      setForms(formsWithCounts);
-    } catch (error) {
-      console.error('Erreur chargement dashboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ✅ États de chargement et d'erreur
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -85,202 +185,119 @@ export default function DashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+          <button
+            onClick={loadForms}
+            className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Rendu principal du dashboard
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <div className="font-bold text-xl text-indigo-600">
-                FormFlow AI
-              </div>
-              <div className="hidden md:flex space-x-6">
-                <Link href="/dashboard" className="text-indigo-600 font-medium border-b-2 border-indigo-600 pb-1">
-                  Dashboard
-                </Link>
-                <Link href="/dashboard/forms" className="text-gray-600 hover:text-gray-900 transition-colors">
-                  Mes Formulaires
-                </Link>
-                <Link href="/dashboard/analytics" className="text-gray-600 hover:text-gray-900 transition-colors">
-                  Analytics
-                </Link>
-              </div>
+            <div className="font-bold text-xl text-indigo-600">
+              FormFlow AI Dashboard
             </div>
-            <UserButton />
+            {/* Votre navigation existante */}
           </div>
         </div>
       </nav>
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* KPI Cards */}
+        {/* ✅ Statistiques */}
         <div className="px-4 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Total Forms */}
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 rounded-lg mr-4">
-                  <span className="text-2xl">📝</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Formulaires</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalForms}</p>
-                </div>
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
+              <div className="text-2xl font-bold text-indigo-600 mb-1">
+                {stats.totalForms}
               </div>
+              <div className="text-sm text-gray-600">Formulaires</div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
+              <div className="text-2xl font-bold text-green-600 mb-1">
+                {stats.totalResponses}
+              </div>
+              <div className="text-sm text-gray-600">Réponses Total</div>
             </div>
 
-            {/* Total Responses */}
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 rounded-lg mr-4">
-                  <span className="text-2xl">📊</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Réponses Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalResponses}</p>
-                </div>
+            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center">
+              <div className="text-2xl font-bold text-purple-600 mb-1">
+                {stats.todayResponses}
               </div>
-            </div>
-
-            {/* Today's Responses */}
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 rounded-lg mr-4">
-                  <span className="text-2xl">🚀</span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Aujourd'hui</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.todayResponses}</p>
-                </div>
-              </div>
+              <div className="text-sm text-gray-600">Aujourd'hui</div>
             </div>
           </div>
         </div>
 
+        {/* ✅ Liste des formulaires */}
         <div className="px-4">
-          {/* Quick Actions */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Actions Rapides</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Create Form Card */}
-              <Link 
-                href="/dashboard/forms/new"
-                className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer"
-              >
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">✨</span>
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2 text-gray-900">Créer un Formulaire</h3>
-                  <p className="text-gray-600 text-sm">
-                    Générez un nouveau formulaire avec IA
-                  </p>
-                </div>
-              </Link>
-
-              {/* My Forms Card */}
-              <Link 
-                href="/dashboard/forms"
-                className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer"
-              >
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">📋</span>
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2 text-gray-900">Mes Formulaires</h3>
-                  <p className="text-gray-600 text-sm">
-                    Gérer vos formulaires existants
-                  </p>
-                </div>
-              </Link>
-
-              {/* Analytics Card */}
-              <Link 
-                href="/dashboard/analytics"
-                className="bg-white p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer"
-              >
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl">📈</span>
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2 text-gray-900">Analytics</h3>
-                  <p className="text-gray-600 text-sm">
-                    Voir les performances détaillées
-                  </p>
-                </div>
-              </Link>
-            </div>
-          </div>
-
-          {/* Recent Forms */}
-          <div className="bg-white rounded-lg shadow-md border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">Formulaires Récents</h2>
-            </div>
-            
-            {forms.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">📝</span>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Aucun formulaire créé
-                </h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                  Créez votre premier formulaire pour commencer à collecter des réponses et analyser vos données.
-                </p>
-                <Link 
-                  href="/dashboard/forms/new"
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium inline-block"
-                >
-                  Créer mon premier formulaire
-                </Link>
+          {forms.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-8 text-center">
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">📝</span>
               </div>
-            ) : (
-              <div className="divide-y">
-                {forms.slice(0, 5).map((form) => (
-                  <div key={form.id} className="p-6 hover:bg-gray-50 transition-colors">
-                    <div className="flex justify-between items-center">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 mb-1">{form.title}</h3>
-                        <p className="text-gray-600 text-sm mb-2">{form.description}</p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <span>Créé le {new Date(form.created_at).toLocaleDateString('fr-FR')}</span>
-                          <span>•</span>
-                          <span>{form.response_count || 0} réponses</span>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Link 
-                          href={`/dashboard/forms/${form.id}`}
-                          className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                        >
-                          Voir
-                        </Link>
-                        <Link 
-                          href={`/dashboard/analytics?form=${form.id}`}
-                          className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-200 transition-colors"
-                        >
-                          Analytics
-                        </Link>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Aucun formulaire créé
+              </h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Créez votre premier formulaire pour commencer à collecter des réponses.
+              </p>
+              <button className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                Créer mon premier formulaire
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {forms.map((form) => (
+                <div key={form.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {form.title}
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-3">
+                        {form.description}
+                      </p>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <span>{form.response_count} réponses</span>
+                        <span>•</span>
+                        <span>Dernière activité: {form.last_activity}</span>
                       </div>
                     </div>
+                    <div className="flex space-x-2">
+                      <Link
+                        href={`/dashboard/forms/${form.id}`}
+                        className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                      >
+                        Voir
+                      </Link>
+                      <Link
+                        href={`/dashboard/analytics?form=${form.id}`}
+                        className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-200 transition-colors"
+                      >
+                        Analytics
+                      </Link>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {forms.length > 5 && (
-              <div className="p-4 border-t border-gray-200 text-center">
-                <Link 
-                  href="/dashboard/forms"
-                  className="text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                  Voir tous les formulaires ({forms.length})
-                </Link>
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
