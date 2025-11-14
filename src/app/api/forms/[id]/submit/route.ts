@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase-client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }  // ✅ Change ici
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // ✅ Await les params (Nouveau dans Next.js 16)
+    // ✅ AWAIT les params (Next.js 16)
     const { id: formId } = await params;
     
     const body = await request.json();
@@ -32,7 +32,6 @@ export async function POST(
 
     if (error) {
       console.error('Erreur Supabase:', error);
-      // Fallback silencieux
       return NextResponse.json({
         success: true,
         submissionId: 'fallback-' + Date.now()
@@ -53,7 +52,6 @@ export async function POST(
   }
 }
 
-// ✅ Ajoutez aussi GET et OPTIONS pour être complet
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -62,16 +60,5 @@ export async function GET(
   return NextResponse.json({
     message: `API soumission pour le formulaire ${formId}`,
     status: 'active'
-  });
-}
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
   });
 }
