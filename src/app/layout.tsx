@@ -3,15 +3,16 @@
 import React, { ReactNode } from 'react';
 import { ClerkProvider as BaseClerkProvider } from '@clerk/nextjs';
 
+// Import CSS - ajustez le chemin selon votre structure
+import './globals.css';
+
 type Props = { children: ReactNode };
 
-// Provider sécurisé pour éviter les erreurs de build
 export function SafeClerkProvider({ children }: Props) {
   const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-  // Si la clé n'existe pas pendant le build → ne pas initialiser Clerk
   if (!key) {
-    console.warn("⚠ Clerk désactivé pendant le build : clé NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY manquante");
+    console.warn("⚠ Clerk désactivé pendant le build");
     return <>{children}</>;
   }
 
