@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client'; // ✅ Utilisez le client sécurisé
 import ResponseAnalytics from '@/components/ResponseAnalytics';
 import { SatisfactionChart } from '@/components/ResponseChart';
 
@@ -11,15 +11,37 @@ export default function AnalyticsPage() {
   const [forms, setForms] = useState<any[]>([]);
   const [selectedForm, setSelectedForm] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       loadForms();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
   const loadForms = async () => {
     try {
+      setError(null);
+      
+      // ✅ Vérification que Supabase est configuré
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        console.warn('Supabase non configuré - mode démo');
+        // Données mockées pour le build
+        const mockForms = [
+          {
+            id: 'demo-form-1',
+            title: 'Formulaire de démonstration',
+            created_at: new Date().toISOString()
+          }
+        ];
+        setForms(mockForms);
+        setSelectedForm(mockForms[0].id);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('forms')
         .select('*')
@@ -27,13 +49,26 @@ export default function AnalyticsPage() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      
       setForms(data || []);
       
       if (data && data.length > 0) {
         setSelectedForm(data[0].id);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur chargement formulaires:', error);
+      setError('Erreur lors du chargement des formulaires');
+      
+      // Fallback avec données mockées
+      const mockForms = [
+        {
+          id: 'fallback-form-1',
+          title: 'Exemple de formulaire',
+          created_at: new Date().toISOString()
+        }
+      ];
+      setForms(mockForms);
+      setSelectedForm(mockForms[0].id);
     } finally {
       setLoading(false);
     }
@@ -65,6 +100,15 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <span className="text-yellow-600 mr-2">⚠</span>
+              <p className="text-yellow-800">{error}</p>
+            </div>
+          </div>
+        )}
+
         {forms.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
             <div className="max-w-md mx-auto">
@@ -100,6 +144,7 @@ export default function AnalyticsPage() {
                 {forms.map((form) => (
                   <option key={form.id} value={form.id}>
                     {form.title} 
+                    {form.id.includes('demo') || form.id.includes('fallback') ? ' (Démo)' : ''}
                   </option>
                 ))}
               </select>
@@ -134,8 +179,14 @@ export default function AnalyticsPage() {
                       Réponses par période
                     </h3>
                     <div className="h-64 flex items-center justify-center text-gray-500">
-                      Graphique des réponses dans le temps
-                      {/* Vous pouvez développer un composant BarChart ici */}
+                      {selectedForm.includes('demo') || selectedForm.includes('fallback') ? (
+                        <div className="text-center">
+                          <span className="text-4xl mb-2">📈</span>
+                          <p>Graphiques disponibles avec<br />Supabase configuré</p>
+                        </div>
+                      ) : (
+                        <p>Graphique des réponses dans le temps</p>
+                      )}
                     </div>
                   </div>
                 </div>
