@@ -13,19 +13,46 @@ interface Form {
 }
 
 export default function AnalyticsPage() {
-  const { user } = useUser();
+  const { user, isLoaded: userLoaded } = useUser();
   const [forms, setForms] = useState<Form[]>([]);
   const [selectedForm, setSelectedForm] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // ✅ Attendre que Clerk soit chargé OU utiliser le mode démo immédiatement
+    if (!userLoaded) {
+      // Mode démo pendant le build
+      loadDemoData();
+      return;
+    }
+
     if (user) {
       loadForms();
     } else {
-      setLoading(false);
+      // Pas d'utilisateur connecté, mode démo
+      loadDemoData();
     }
-  }, [user]);
+  }, [user, userLoaded]);
+
+  const loadDemoData = () => {
+    console.warn('Chargement données démo Analytics');
+    const mockForms = [
+      {
+        id: 'demo-form-1',
+        title: 'Formulaire de démonstration Analytics',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'demo-form-2',
+        title: 'Sondage satisfaction (Démo)',
+        created_at: new Date().toISOString()
+      }
+    ];
+    setForms(mockForms);
+    setSelectedForm(mockForms[0].id);
+    setLoading(false);
+  };
 
   const loadForms = async () => {
     try {
@@ -34,21 +61,7 @@ export default function AnalyticsPage() {
       // ✅ Vérification que Supabase est configuré
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
         console.warn('Supabase non configuré - mode démo Analytics');
-        const mockForms = [
-          {
-            id: 'demo-form-1',
-            title: 'Formulaire de démonstration Analytics',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: 'demo-form-2',
-            title: 'Sondage satisfaction (Démo)',
-            created_at: new Date().toISOString()
-          }
-        ];
-        setForms(mockForms);
-        setSelectedForm(mockForms[0].id);
-        setLoading(false);
+        loadDemoData();
         return;
       }
 
@@ -64,21 +77,16 @@ export default function AnalyticsPage() {
       
       if (data && data.length > 0) {
         setSelectedForm(data[0].id);
+      } else {
+        // Aucun formulaire, mode démo
+        loadDemoData();
       }
     } catch (error: any) {
       console.error('Erreur chargement formulaires:', error);
       setError('Erreur lors du chargement des formulaires');
       
       // Fallback avec données mockées
-      const mockForms = [
-        {
-          id: 'fallback-form-1',
-          title: 'Exemple de formulaire',
-          created_at: new Date().toISOString()
-        }
-      ];
-      setForms(mockForms);
-      setSelectedForm(mockForms[0].id);
+      loadDemoData();
     } finally {
       setLoading(false);
     }
@@ -120,12 +128,12 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {!process.env.NEXT_PUBLIC_SUPABASE_URL && (
+        {(!process.env.NEXT_PUBLIC_SUPABASE_URL || !user) && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-center">
               <span className="text-blue-600 mr-2">💡</span>
               <p className="text-blue-800">
-                Mode démo Analytics - Configurez Supabase pour les données réelles
+                Mode démo Analytics - Connectez-vous et configurez Supabase pour les données réelles
               </p>
             </div>
           </div>
