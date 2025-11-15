@@ -2,13 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { supabase } from '@/lib/supabase-client'; // ✅ Utilisez le client sécurisé
+import { supabase } from '@/lib/supabase-client';
 import ResponseAnalytics from '@/components/ResponseAnalytics';
 import { SatisfactionChart } from '@/components/ResponseChart';
 
+interface Form {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
 export default function AnalyticsPage() {
   const { user } = useUser();
-  const [forms, setForms] = useState<any[]>([]);
+  const [forms, setForms] = useState<Form[]>([]);
   const [selectedForm, setSelectedForm] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,12 +33,16 @@ export default function AnalyticsPage() {
       
       // ✅ Vérification que Supabase est configuré
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        console.warn('Supabase non configuré - mode démo');
-        // Données mockées pour le build
+        console.warn('Supabase non configuré - mode démo Analytics');
         const mockForms = [
           {
             id: 'demo-form-1',
-            title: 'Formulaire de démonstration',
+            title: 'Formulaire de démonstration Analytics',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'demo-form-2',
+            title: 'Sondage satisfaction (Démo)',
             created_at: new Date().toISOString()
           }
         ];
@@ -44,7 +54,7 @@ export default function AnalyticsPage() {
 
       const { data, error } = await supabase
         .from('forms')
-        .select('*')
+        .select('id, title, created_at')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
@@ -100,11 +110,23 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Alertes */}
         {error && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
             <div className="flex items-center">
               <span className="text-yellow-600 mr-2">⚠</span>
               <p className="text-yellow-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {!process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <span className="text-blue-600 mr-2">💡</span>
+              <p className="text-blue-800">
+                Mode démo Analytics - Configurez Supabase pour les données réelles
+              </p>
             </div>
           </div>
         )}
@@ -139,12 +161,12 @@ export default function AnalyticsPage() {
               <select
                 value={selectedForm || ''}
                 onChange={(e) => setSelectedForm(e.target.value)}
-                className="w-full md:w-96 bg-white border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full md:w-96 bg-white border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
               >
                 {forms.map((form) => (
                   <option key={form.id} value={form.id}>
                     {form.title} 
-                    {form.id.includes('demo') || form.id.includes('fallback') ? ' (Démo)' : ''}
+                    {(form.id.includes('demo') || form.id.includes('fallback')) && ' (Démo)'}
                   </option>
                 ))}
               </select>
@@ -182,10 +204,13 @@ export default function AnalyticsPage() {
                       {selectedForm.includes('demo') || selectedForm.includes('fallback') ? (
                         <div className="text-center">
                           <span className="text-4xl mb-2">📈</span>
-                          <p>Graphiques disponibles avec<br />Supabase configuré</p>
+                          <p className="text-sm">Graphiques disponibles avec<br />Supabase configuré</p>
                         </div>
                       ) : (
-                        <p>Graphique des réponses dans le temps</p>
+                        <div className="text-center">
+                          <span className="text-4xl mb-2">📊</span>
+                          <p className="text-sm">Analytics temps réel<br />avec vos données</p>
+                        </div>
                       )}
                     </div>
                   </div>

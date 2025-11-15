@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 interface Form {
   id: string;
@@ -22,6 +22,33 @@ export default function FormsPage() {
   useEffect(() => {
     const loadForms = async () => {
       try {
+        setError(null);
+        
+        // ✅ Vérification Supabase pour le build
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          console.warn('Supabase non configuré - mode démo FormsPage');
+          // Données mockées pour le build
+          const mockForms = [
+            {
+              id: 'demo-form-1',
+              title: 'Formulaire de démonstration',
+              description: 'Exemple de formulaire en mode démo',
+              fields: [{ id: 1, type: 'text', label: 'Nom' }],
+              created_at: new Date().toISOString()
+            },
+            {
+              id: 'demo-form-2', 
+              title: 'Sondage de satisfaction',
+              description: 'Collectez les retours de vos utilisateurs',
+              fields: [{ id: 1, type: 'rating', label: 'Satisfaction' }],
+              created_at: new Date(Date.now() - 86400000).toISOString()
+            }
+          ];
+          setForms(mockForms);
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('forms')
           .select('*')
@@ -29,9 +56,21 @@ export default function FormsPage() {
 
         if (error) throw error;
         setForms(data || []);
-      } catch (err) {
+      } catch (err: any) {
+        console.error('Erreur chargement formulaires:', err);
         setError('Erreur lors du chargement des formulaires');
-        console.error(err);
+        
+        // Fallback avec données mockées
+        const mockForms = [
+          {
+            id: 'fallback-form-1',
+            title: 'Exemple de formulaire',
+            description: 'Données de démonstration',
+            fields: [],
+            created_at: new Date().toISOString()
+          }
+        ];
+        setForms(mockForms);
       } finally {
         setLoading(false);
       }
@@ -42,11 +81,28 @@ export default function FormsPage() {
 
   // Copier le lien public
   const copyToClipboard = async (formId: string) => {
-    const publicUrl = `${window.location.origin}/forms/${formId}`;
-    await navigator.clipboard.writeText(publicUrl);
-    setCopiedId(formId);
-    setTimeout(() => setCopiedId(null), 2000);
+    try {
+      const publicUrl = `${window.location.origin}/forms/${formId}`;
+      await navigator.clipboard.writeText(publicUrl);
+      setCopiedId(formId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Erreur copie clipboard:', err);
+    }
   };
+
+  // Calculer les statistiques
+  const totalForms = forms.length;
+  const totalFields = forms.reduce((total, form) => total + (form.fields?.length || 0), 0);
+  const recentForms = forms.filter(form => {
+    try {
+      const formDate = new Date(form.created_at);
+      const today = new Date();
+      return formDate.toDateString() === today.toDateString();
+    } catch {
+      return false;
+    }
+  }).length;
 
   if (loading) {
     return (
@@ -58,28 +114,6 @@ export default function FormsPage() {
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            Erreur de chargement
-          </h1>
-          <p className="text-gray-600">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculer les statistiques
-  const totalForms = forms.length;
-  const totalFields = forms.reduce((total, form) => total + (form.fields?.length || 0), 0);
-  const recentForms = forms.filter(form => {
-    const formDate = new Date(form.created_at);
-    const today = new Date();
-    return formDate.toDateString() === today.toDateString();
-  }).length;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -100,27 +134,49 @@ export default function FormsPage() {
           </div>
           <Link
             href="/dashboard/forms/new"
-            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
           >
             + Nouveau Formulaire
           </Link>
         </div>
 
+        {/* Message d'erreur */}
+        {error && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <span className="text-yellow-600 mr-2">⚠</span>
+              <p className="text-yellow-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Mode démo indication */}
+        {!process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <span className="text-blue-600 mr-2">💡</span>
+              <p className="text-blue-800">
+                Mode démo activé - Données d'exemple affichées
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Total</h3>
             <p className="text-3xl font-bold text-indigo-600">{totalForms}</p>
             <p className="text-gray-600 text-sm">Formulaires créés</p>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Récents</h3>
             <p className="text-3xl font-bold text-green-600">{recentForms}</p>
             <p className="text-gray-600 text-sm">Aujourd'hui</p>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Champs</h3>
             <p className="text-3xl font-bold text-blue-600">{totalFields}</p>
             <p className="text-gray-600 text-sm">Champs total</p>
@@ -129,9 +185,11 @@ export default function FormsPage() {
 
         {/* Liste des formulaires */}
         {forms.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+          <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
             <div className="max-w-md mx-auto">
-              <div className="text-6xl mb-4">📝</div>
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">📝</span>
+              </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
                 Aucun formulaire créé
               </h2>
@@ -140,7 +198,7 @@ export default function FormsPage() {
               </p>
               <Link
                 href="/dashboard/forms/new"
-                className="bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 inline-block"
+                className="bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium inline-block"
               >
                 Créer mon premier formulaire
               </Link>
@@ -150,13 +208,21 @@ export default function FormsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {forms.map((form) => {
               const publicUrl = `${window.location.origin}/forms/${form.id}`;
+              const isDemoForm = form.id.includes('demo') || form.id.includes('fallback');
               
               return (
-                <div key={form.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow">
+                <div key={form.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                   <div className="p-6">
-                    <h3 className="font-semibold text-lg text-gray-900 mb-2 truncate">
-                      {form.title}
-                    </h3>
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-semibold text-lg text-gray-900 truncate flex-1 mr-2">
+                        {form.title}
+                      </h3>
+                      {isDemoForm && (
+                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                          Démo
+                        </span>
+                      )}
+                    </div>
                     
                     {form.description && (
                       <p className="text-gray-600 text-sm mb-4 line-clamp-2">
@@ -183,7 +249,7 @@ export default function FormsPage() {
                         />
                         <button
                           onClick={() => copyToClipboard(form.id)}
-                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 whitespace-nowrap min-w-[60px]"
+                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 whitespace-nowrap min-w-[60px] transition-colors"
                         >
                           {copiedId === form.id ? '✓' : 'Copier'}
                         </button>
@@ -193,7 +259,7 @@ export default function FormsPage() {
                           href={publicUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-xs"
+                          className="text-blue-600 hover:text-blue-800 text-xs transition-colors"
                         >
                           👁️ Voir
                         </a>
@@ -201,35 +267,28 @@ export default function FormsPage() {
                           href={`https://facebook.com/sharer/sharer.php?u=${encodeURIComponent(publicUrl)}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-xs"
+                          className="text-blue-600 hover:text-blue-800 text-xs transition-colors"
                         >
                           📘 Partager
                         </a>
                       </div>
                     </div>
 
-                    {/* BOUTONS D'ACTION - AVEC ANALYTICS */}
+                    {/* Boutons d'action */}
                     <div className="flex gap-2">
-                      {/* BOUTON ANALYTICS */}
                       <Link
                         href={`/dashboard/forms/${form.id}/analytics`}
-                        className="flex-1 bg-blue-600 text-white text-center py-2 rounded text-sm hover:bg-blue-700 transition-colors"
+                        className="flex-1 bg-blue-600 text-white text-center py-2 rounded text-sm hover:bg-blue-700 transition-colors font-medium"
                       >
                         📊 Analytics
                       </Link>
                       
-                      {/* BOUTON DÉTAILS */}
                       <Link
                         href={`/dashboard/forms/${form.id}`}
-                        className="flex-1 bg-indigo-600 text-white text-center py-2 rounded text-sm hover:bg-indigo-700 transition-colors"
+                        className="flex-1 bg-indigo-600 text-white text-center py-2 rounded text-sm hover:bg-indigo-700 transition-colors font-medium"
                       >
                         Détails
                       </Link>
-                      
-                      {/* BOUTON OPTIONS */}
-                      <button className="bg-gray-500 text-white px-3 py-2 rounded text-sm hover:bg-gray-600 transition-colors">
-                        ⋮
-                      </button>
                     </div>
                   </div>
                 </div>
