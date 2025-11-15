@@ -2,8 +2,6 @@
 
 import React, { ReactNode } from 'react';
 import { ClerkProvider as BaseClerkProvider } from '@clerk/nextjs';
-
-// Import CSS - ajustez le chemin selon votre structure
 import './globals.css';
 
 type Props = { children: ReactNode };
